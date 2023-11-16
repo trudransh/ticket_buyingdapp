@@ -1,3 +1,44 @@
+// Define the data types
+type Principal = principal;
+type Event = record {
+    id : text;
+    name : text;
+    date : text;
+    location : text;
+    max_seats : nat32;
+    nft_id : opt text;
+};
+
+type Ticket = record {
+    id : text;
+    seat_number : text;
+    event_id : text;
+    owner : Principal;
+};
+
+type NFTMetadata = record {
+    token_id : text;
+    owner : Principal;
+    metadata : DIP721Metadata;
+};
+
+type DIP721Metadata = record {
+    name : text;
+    description : text;
+    image : text;
+    attributes : vec Attribute;
+};
+
+type Attribute = record {
+    trait_type : text;
+    value : text;
+};
+
+// Define the service interface
 service : {
-    "greet": (text) -> (text) query;
-}
+    create_event : (text, text, text, nat32, text) -> (opt Event);
+    mint_ticket : (text, nat32) -> (opt Ticket);
+    transfer_ticket : (text, Principal) -> ();
+    check_ticket_owner : (nat64) -> (opt Principal) query;
+    get_event : (text) -> (opt Event) query;
+};

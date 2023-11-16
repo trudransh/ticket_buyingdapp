@@ -4,19 +4,6 @@
       "candid": "src/nft_ticketing_backend/nft_ticketing_backend.did",
       "package": "nft_ticketing_backend",
       "type": "rust"
-    },
-    "nft_ticketing_frontend": {
-      "dependencies": [
-        "nft_ticketing_backend"
-      ],
-      "frontend": {
-        "entrypoint": "src/nft_ticketing_frontend/src/index.html"
-      },
-      "source": [
-        "src/nft_ticketing_frontend/assets",
-        "dist/nft_ticketing_frontend/"
-      ],
-      "type": "assets"
     }
   },
   "defaults": {
