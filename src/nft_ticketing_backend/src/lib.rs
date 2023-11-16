@@ -13,7 +13,7 @@ struct Event {
     date: String,
     location: String,
     max_seats: u32,
-    nft_metadata: NFTMetadata,
+    nft_id: Option<String>,
 }
 
 #[derive(CandidType, Clone)]
@@ -52,11 +52,11 @@ struct Metadata {
     image: String,
     attributes: Vec<Attribute>,
 }
-// enum Error {
-//     NotFound,
-//     NotAuthorized,
-//     InvalidInput,
-// }
+enum Error {
+    NotFound,
+    NotAuthorized,
+    InvalidInput,
+}
 
 // Global state for managing events and tickets
 static mut EVENTS: Lazy<HashMap<String, Event>> = Lazy::new(|| HashMap::new());
@@ -74,7 +74,6 @@ fn create_event(
     location: String,
     num_seats: u32,
     id: String,
-    nft: NFTMetadata,
 ) -> Result<Event, String> {
     unsafe {
         if EVENTS.contains_key(&id) {
@@ -83,11 +82,11 @@ fn create_event(
 
         let event = Event {
             id: id.clone(),
-            name: name.clone(),
-            date: date.clone(),
-            location: location.clone(),
+            name,
+            date,
+            location,
             max_seats: num_seats,
-            nft_metadata: nft, // This can be updated later when NFTs are minted
+            nft_id: None, // This can be updated later when NFTs are minted
         };
 
         EVENTS.insert(id.clone(), event.clone());
@@ -113,42 +112,38 @@ fn mint_ticket(event_id: String, seat_number: u32) -> Result<Ticket, String> {
         if TICKETS.contains_key(&ticket_id) {
             return Err("This seat is already taken".to_string());
         }
-        let image_url = match NFT_METADATA.get(&event.nft_id.clone().unwrap()) {
-            Some(nft) => nft.metadata.image.clone(),
-            None => return Err("NFT not found".to_string()),
+
+        // Mint the NFT here following DIP-721 standard
+        let nft_metadata = NFTMetadata {
+            token_id: ticket_id.clone(),
+            owner: ic_cdk::caller(), // The owner is the caller of this function
+            metadata: DIP721Metadata {
+                name: "Event Ticket".to_string(),
+                description: format!("Ticket for {} at seat {}", event.name, seat_number),
+                image: "image_url_or_data_uri".to_string(), // Replace with actual image URL or data URI
+                attributes: vec![
+                    Attribute {
+                        trait_type: "Event Name".to_string(),
+                        value: event.name.clone(),
+                    },
+                    // Add other event-related attributes here
+                ],
+            },
         };
-    };
 
-    // Mint the NFT here following DIP-721 standard
-    let nft_metadata = NFTMetadata {
-        token_id: ticket_id.clone(),
-        owner: ic_cdk::caller(), // The owner is the caller of this function
-        metadata: DIP721Metadata {
-            name: "Event Ticket".to_string(),
-            description: format!("Ticket for {} at seat {}", event.name, seat_number),
-            image: image_url, // Replace with actual image URL or data URI
-            attributes: vec![
-                Attribute {
-                    trait_type: "Event Name".to_string(),
-                    value: event.name.clone(),
-                },
-                // Add other event-related attributes here
-            ],
-        },
-    };
+        NFT_METADATA.insert(ticket_id.clone(), nft_metadata);
 
-    // NFT_METADATA.insert(ticket_id.clone(), nft_metadata);
+        let ticket = Ticket {
+            id: ticket_id.clone(),
+            seat_number: seat_number.to_string(),
+            event_id: event_id.clone(),
+            owner: ic_cdk::caller(),
+        };
 
-    let ticket = Ticket {
-        id: ticket_id.clone(),
-        seat_number: seat_number.to_string(),
-        event_id: event_id.clone(),
-        owner: ic_cdk::caller(),
-    };
+        TICKETS.insert(ticket_id, ticket.clone());
 
-    TICKETS.insert(ticket_id, ticket.clone());
-
-    Ok(ticket)
+        Ok(ticket)
+    }
 }
 #[ic_cdk::update]
 fn transfer_ticket(ticket_id: String, new_owner: Principal) -> Result<(), String> {
