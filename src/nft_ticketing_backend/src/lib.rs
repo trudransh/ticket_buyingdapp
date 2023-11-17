@@ -63,10 +63,6 @@ static mut EVENTS: Lazy<HashMap<String, Event>> = Lazy::new(|| HashMap::new());
 static mut TICKETS: Lazy<HashMap<String, Ticket>> = Lazy::new(|| HashMap::new());
 static mut NFT_METADATA: Lazy<HashMap<String, NFTMetadata>> = Lazy::new(|| HashMap::new());
 
-// ... Function implementations
-
-// ... Existing code ...
-
 #[ic_cdk::update]
 fn create_event(
     name: String,
@@ -96,7 +92,7 @@ fn create_event(
 }
 
 #[ic_cdk::update]
-fn mint_ticket(event_id: String, seat_number: u32) -> Result<Ticket, String> {
+fn mint_ticket(event_id: String, seat_number: u32, owner: Principal) -> Result<Ticket, String> {
     unsafe {
         let event = match EVENTS.get(&event_id) {
             Some(e) => e,
@@ -116,7 +112,7 @@ fn mint_ticket(event_id: String, seat_number: u32) -> Result<Ticket, String> {
         // Mint the NFT here following DIP-721 standard
         let nft_metadata = NFTMetadata {
             token_id: ticket_id.clone(),
-            owner: ic_cdk::caller(), // The owner is the caller of this function
+            owner: owner.clone(),
             metadata: DIP721Metadata {
                 name: "Event Ticket".to_string(),
                 description: format!("Ticket for {} at seat {}", event.name, seat_number),
@@ -137,7 +133,7 @@ fn mint_ticket(event_id: String, seat_number: u32) -> Result<Ticket, String> {
             id: ticket_id.clone(),
             seat_number: seat_number.to_string(),
             event_id: event_id.clone(),
-            owner: ic_cdk::caller(),
+            owner: owner.clone(),
         };
 
         TICKETS.insert(ticket_id, ticket.clone());
@@ -146,7 +142,11 @@ fn mint_ticket(event_id: String, seat_number: u32) -> Result<Ticket, String> {
     }
 }
 #[ic_cdk::update]
-fn transfer_ticket(ticket_id: String, new_owner: Principal) -> Result<(), String> {
+fn transfer_ticket(
+    ticket_id: String,
+    new_owner: Principal,
+    owner: Principal,
+) -> Result<(), String> {
     unsafe {
         // Check if the ticket exists
         let ticket = match TICKETS.get_mut(&ticket_id) {
@@ -155,7 +155,7 @@ fn transfer_ticket(ticket_id: String, new_owner: Principal) -> Result<(), String
         };
 
         // Check if the caller is the current owner of the ticket
-        if ticket.owner != ic_cdk::caller() {
+        if ticket.owner != owner {
             return Err("Only the ticket owner can transfer it".to_string());
         }
 
