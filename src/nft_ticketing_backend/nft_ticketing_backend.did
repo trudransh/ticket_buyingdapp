@@ -1,70 +1,25 @@
 type Event = record {
-    id : text;
-    name : text;
-    date : text;
-    location : text;
-    max_seats : nat32;
-    nft_id : opt text;
+  id : text;
+  nft_id : opt text;
+  date : nat64;
+  name : text;
+  max_seats : nat32;
+  location : text;
 };
-
+type Result = variant { Ok : principal; Err : text };
+type Result_1 = variant { Ok : Event; Err : text };
+type Result_2 = variant { Ok : Ticket; Err : text };
+type Result_3 = variant { Ok; Err : text };
 type Ticket = record {
-    id : text;
-    seat_number : text;
-    event_id : text;
-    owner : principal;
+  id : text;
+  owner : principal;
+  seat_number : text;
+  event_id : text;
 };
-
-type NFTMetadata = record {
-    token_id : text;
-    owner : principal;
-    metadata : DIP721Metadata;
-};
-
-type DIP721Metadata = record {
-    name : text;
-    description : text;
-    image : text;
-    attributes : vec Attribute;
-};
-
-type Attribute = record {
-    trait_type : text;
-    value : text;
-};
-
-type Metadata = record {
-    name : text;
-    description : text;
-    image : text;
-    attributes : vec Attribute;
-};
-
 service : {
-    create_event : (
-        name : text,
-        date : text,
-        location : text,
-        num_seats : nat32,
-        id : text,
-    ) -> (variant { Ok : Event; Err : text });
-
-    mint_ticket : (
-        event_id : text,
-        seat_number : nat32,
-        owner : principal,
-    ) -> (variant { Ok : Ticket; Err : text });
-
-    transfer_ticket : (
-        ticket_id : text,
-        new_owner : principal,
-        owner : principal,
-    ) -> (variant { Ok : null; Err : text });
-
-    check_ticket_owner : (
-        ticket_id : text
-    ) -> (opt principal);
-
-    get_event : (
-        event_id : text
-    ) -> (opt Event);
-};
+  check_ticket_owner : (text) -> (Result) query;
+  create_event : (text, nat64, text, nat32, text) -> (Result_1);
+  get_event : (text) -> (Result_1) query;
+  mint_ticket : (text, nat32, principal) -> (Result_2);
+  transfer_ticket : (text, principal) -> (Result_3);
+}
