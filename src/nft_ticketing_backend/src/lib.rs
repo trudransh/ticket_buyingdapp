@@ -1,8 +1,10 @@
 // use ic_cdk::export::candid::{CandidType, Principal};
 use candid::{CandidType, Principal};
-use ic_cdk::{query, update};
+use ic_cdk::api::time;
 // use candid::Deserialize;
 
+use ic_cdk::caller;
+use ic_cdk_macros::export_candid;
 use once_cell::sync::Lazy;
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -10,7 +12,7 @@ use std::collections::HashMap;
 struct Event {
     id: String,
     name: String,
-    date: String,
+    date: u64,
     location: String,
     max_seats: u32,
     nft_id: Option<String>,
@@ -52,21 +54,35 @@ struct Metadata {
     image: String,
     attributes: Vec<Attribute>,
 }
-enum Error {
-    NotFound,
-    NotAuthorized,
-    InvalidInput,
-}
+
 
 // Global state for managing events and tickets
 static mut EVENTS: Lazy<HashMap<String, Event>> = Lazy::new(|| HashMap::new());
 static mut TICKETS: Lazy<HashMap<String, Ticket>> = Lazy::new(|| HashMap::new());
 static mut NFT_METADATA: Lazy<HashMap<String, NFTMetadata>> = Lazy::new(|| HashMap::new());
 
+
+
+fn validate_input(name: String, date: u64, location: String, num_seats: u32) -> Result<(), String>{
+    let five_minutes: u64 = 300_000_000_000;
+    let min_allowed_date = time() + five_minutes;
+    if name.trim().len() == 0 {
+        return Err(format!("Invalid name={}", name))
+    }else if location.trim().len() == 0 {
+        return Err(format!("Invalid location={}", location))
+    }else if num_seats == 0 {
+        return Err(format!("Invalid num_seats={}", num_seats))
+    }else if date < min_allowed_date{
+        return Err(format!("Date needs to be at least five minutes more than the current timestamp. Date={}", date))
+    }else{
+        Ok(())
+    }
+}
+
 #[ic_cdk::update]
 fn create_event(
     name: String,
-    date: String,
+    date: u64,
     location: String,
     num_seats: u32,
     id: String,
@@ -75,7 +91,10 @@ fn create_event(
         if EVENTS.contains_key(&id) {
             return Err("Event with this ID already exists".to_string());
         }
-
+        let can_create = validate_input(name.clone(),date.clone(),location.clone(),num_seats.clone());
+        if can_create.is_err(){
+            return Err(can_create.unwrap_err())
+        }
         let event = Event {
             id: id.clone(),
             name,
@@ -99,7 +118,7 @@ fn mint_ticket(event_id: String, seat_number: u32, owner: Principal) -> Result<T
             None => return Err("Event not found".to_string()),
         };
 
-        if seat_number > event.max_seats {
+        if seat_number >= event.max_seats {
             return Err("Seat number exceeds the maximum seats available".to_string());
         }
 
@@ -144,8 +163,7 @@ fn mint_ticket(event_id: String, seat_number: u32, owner: Principal) -> Result<T
 #[ic_cdk::update]
 fn transfer_ticket(
     ticket_id: String,
-    new_owner: Principal,
-    owner: Principal,
+    new_owner: Principal
 ) -> Result<(), String> {
     unsafe {
         // Check if the ticket exists
@@ -155,33 +173,44 @@ fn transfer_ticket(
         };
 
         // Check if the caller is the current owner of the ticket
-        if ticket.owner != owner {
+        if ticket.owner != caller() {
             return Err("Only the ticket owner can transfer it".to_string());
         }
 
         // Update the ticket's owner
         ticket.owner = new_owner;
-
+            
         Ok(())
     }
 }
 
 #[ic_cdk::query]
-fn check_ticket_owner(ticket_id: u64) -> Option<Principal> {
+fn check_ticket_owner(ticket_id: String) -> Result<Principal, String> {
     // Access the global TICKETS HashMap in a safe way
     unsafe {
         // Check if the ticket with the given ID exists
-        TICKETS
-            .get(&ticket_id.to_string())
-            .map(|ticket| ticket.owner)
+        let ticket = TICKETS.get(&ticket_id);
+        if ticket.is_some(){
+            Ok(ticket.unwrap().owner)
+        }else{
+            return Err(format!("Ticket with id={} not found.", ticket_id))
+        }
+        
     }
 }
 
 #[ic_cdk::query]
-fn get_event(event_id: String) -> Option<Event> {
+fn get_event(event_id: String) -> Result<Event, String> {
     // Access the global EVENTS HashMap in a safe way
     unsafe {
-        // Check if the event with the given ID exists
-        EVENTS.get(&event_id).cloned()
+        let event_opt = EVENTS.get(&event_id);
+        if event_opt.is_some(){
+            let event = event_opt.unwrap().clone();
+            return Ok(event)
+        }else{
+            return Err(format!("Event with id={} not found.", event_id))
+        }
     }
 }
+
+export_candid!();
