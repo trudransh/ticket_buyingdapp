@@ -48,6 +48,18 @@ service : {
         id : text,
     ) -> (variant { Ok : Event; Err : text });
 
+    update_event : (
+        id : text,
+        new_name : opt text,
+        new_date : opt text,
+        new_location : opt text,
+        new_num_seats : opt nat32,
+    ) -> (variant { Ok : null; Err : text });
+
+    delete_event : (
+        id : text
+    ) -> (variant { Ok : null; Err : text });
+
     mint_ticket : (
         event_id : text,
         seat_number : nat32,

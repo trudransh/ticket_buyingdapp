@@ -1,11 +1,13 @@
 // use ic_cdk::export::candid::{CandidType, Principal};
 use candid::{CandidType, Principal};
-use ic_cdk::{query, update};
+// Candid Type is used for Serialization and Deserialization
+// Principal is used to represent the identity of a user or canister
 // use candid::Deserialize;
-
+use chrono::NaiveDate;
 use once_cell::sync::Lazy;
 use std::clone::Clone;
 use std::collections::HashMap;
+
 #[derive(CandidType, Clone)]
 struct Event {
     id: String,
@@ -51,11 +53,6 @@ struct Metadata {
     description: String,
     image: String,
     attributes: Vec<Attribute>,
-}
-enum Error {
-    NotFound,
-    NotAuthorized,
-    InvalidInput,
 }
 
 // Global state for managing events and tickets
@@ -183,5 +180,82 @@ fn get_event(event_id: String) -> Option<Event> {
     unsafe {
         // Check if the event with the given ID exists
         EVENTS.get(&event_id).cloned()
+    }
+}
+
+#[ic_cdk::update]
+fn burn_ticket(ticket_id: String, caller: Principal) -> Result<(), String> {
+    unsafe {
+        // Verify that the caller owns the ticket
+        let ticket = match TICKETS.get(&ticket_id) {
+            Some(t) if t.owner == caller => t,
+            _ => return Err("Ticket not found or caller is not the owner".to_string()),
+        };
+
+        // Convert the event date from String to NaiveDate
+        let event_date = match EVENTS.get(&ticket.event_id) {
+            Some(e) => match e.date.parse::<NaiveDate>() {
+                Ok(parsed_date) => parsed_date,
+                Err(_) => return Err("Invalid date format for event".to_string()),
+            },
+            None => return Err("Event not found".to_string()),
+        };
+
+        // Get the current date as NaiveDate
+        let current_date = chrono::Utc::now().naive_utc().date();
+
+        // Verify that the event date is before the current date
+        if event_date >= current_date {
+            return Err("Event has not occurred yet".to_string());
+        }
+
+        // Remove the ticket from the TICKETS storage
+        TICKETS.remove(&ticket_id);
+
+        // Remove associated NFT metadata if exists
+        NFT_METADATA.remove(&ticket_id);
+
+        Ok(())
+    }
+}
+
+#[ic_cdk::update]
+fn update_event(
+    id: String,
+    new_name: Option<String>,
+    new_date: Option<String>,
+    new_location: Option<String>,
+    new_num_seats: Option<u32>,
+) -> Result<(), String> {
+    unsafe {
+        let event = EVENTS.get_mut(&id).ok_or("Event not found".to_string())?;
+
+        if let Some(name) = new_name {
+            event.name = name;
+        }
+        if let Some(date) = new_date {
+            event.date = date;
+        }
+        if let Some(location) = new_location {
+            event.location = location;
+        }
+        if let Some(num_seats) = new_num_seats {
+            event.max_seats = num_seats;
+        }
+
+        Ok(())
+    }
+}
+
+#[ic_cdk::update]
+fn delete_event(id: String) -> Result<(), String> {
+    unsafe {
+        if EVENTS.remove(&id).is_some() {
+            // Additional logic to handle tickets associated with the event
+            // For example, canceling them or notifying ticket holders
+            Ok(())
+        } else {
+            Err("Event not found".to_string())
+        }
     }
 }
