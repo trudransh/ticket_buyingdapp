@@ -3,7 +3,7 @@ use candid::{CandidType, Principal};
 // Candid Type is used for Serialization and Deserialization
 // Principal is used to represent the identity of a user or canister
 // use candid::Deserialize;
-use chrono::NaiveDate;
+
 use once_cell::sync::Lazy;
 use std::clone::Clone;
 use std::collections::HashMap;
@@ -194,15 +194,14 @@ fn burn_ticket(ticket_id: String, caller: Principal) -> Result<(), String> {
 
         // Convert the event date from String to NaiveDate
         let event_date = match EVENTS.get(&ticket.event_id) {
-            Some(e) => match e.date.parse::<NaiveDate>() {
-                Ok(parsed_date) => parsed_date,
-                Err(_) => return Err("Invalid date format for event".to_string()),
+            Some(e) =>  {
+                e.date.parse::<u64>().unwrap()
             },
             None => return Err("Event not found".to_string()),
         };
 
         // Get the current date as NaiveDate
-        let current_date = chrono::Utc::now().naive_utc().date();
+        let current_date = ic_cdk::api::time();
 
         // Verify that the event date is before the current date
         if event_date >= current_date {
